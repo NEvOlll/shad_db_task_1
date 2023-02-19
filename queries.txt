@@ -1,0 +1,223 @@
+CREATE TABLE employees (
+    id integer,
+    boss_id integer,
+    name VARCHAR(50)
+);
+
+1) 
+INSERT INTO employees(id, boss_id, name) VALUES(id_value, boss_id_value, name);
+
+2) 
+UPDATE employees SET boss_id = new_department_id WHERE id = employee_id;
+
+3) 
+SELECT * FROM employees WHERE id = department_id OR boss_id = department_id;
+
+4) 
+SELECT e1.id, e1.boss_id, e1.name FROM employees e1 LEFT JOIN employees e2 ON e1.id = e2.boss_id WHERE e2.id is NULL ORDER BY id;
+
+5) 
+WITH RECURSIVE r AS (
+	SELECT id, boss_id, name
+	FROM employees 
+	WHERE id in (
+		SELECT boss_id 
+		FROM employees 
+		WHERE id = emoployee_id
+	)
+	
+	UNION
+	
+	SELECT employees.id, employees.boss_id, employees.name
+	FROM employees
+	JOIN r 
+	ON employees.id = r.boss_id
+) SELECT * FROM r;
+
+6) 
+WITH RECURSIVE r AS (
+	SELECT id, boss_id
+	FROM employees 
+	WHERE id = department_id
+	
+	UNION
+	
+	SELECT employees.id, employees.boss_id
+	FROM employees
+	JOIN r 
+	ON employees.boss_id = r.id
+) SELECT COUNT(*) FROM r;
+
+7) 
+// проверяем, что есть ровно 1 корень
+SELECT * 
+FROM employees
+WHERE boss_id = -1;
+
+//проверяем что у каждой вершины не более одного родителя
+SELECT id, COUNT(boss_id) as bosses_count
+FROM employees
+GROUP BY id
+HAVING COUNT(boss_id) > 1;
+
+//проверяем что нет петель в дереве
+SELECT * FROM employees WHERE boss_id = id;
+
+8) 
+WITH RECURSIVE r AS (
+	SELECT id, boss_id, name
+	FROM employees 
+	WHERE id = emoployee_id
+	
+	UNION
+	
+	SELECT employees.id, employees.boss_id, employees.name
+	FROM employees
+	JOIN r 
+	ON employees.id = r.boss_id
+) SELECT COUNT(*) - 1 as rang FROM r;
+
+9) WITH RECURSIVE r AS (
+	SELECT id, boss_id, 1 as i, CAST( name as text) as formatted_name
+	FROM employees 
+	WHERE id = employee_id
+	
+	UNION
+	
+	SELECT employees.id, employees.boss_id, i + 1 as i, REPEAT(' ', i) || employees.name as formatted_name
+	FROM employees
+	JOIN r 
+	ON employees.boss_id = r.id
+) SELECT formatted_name FROM r;
+
+10) 
+SELECT e.id, e.boss_id, e.name
+FROM
+(
+	(
+		SELECT *
+		FROM 
+		(
+			-- getting all witout intersection
+			WITH parents_from as ( 
+					WITH RECURSIVE r AS (
+						SELECT id, boss_id, name, 0 as num FROM employees WHERE id = from_employee_id 			
+						UNION
+						SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN r ON employees.id = r.boss_id
+					) SELECT * FROM r
+			) SELECT parents_from.id, parents_from.num FROM parents_from
+			WHERE id NOT IN (
+			 	WITH RECURSIVE r AS (
+					SELECT id, boss_id, name FROM employees WHERE id = to_employee_id	
+					UNION
+					SELECT employees.id, employees.boss_id, employees.name FROM employees JOIN r ON employees.id = r.boss_id
+				) SELECT id FROM r
+			)
+			UNION
+			(
+				--getting lca
+				WITH RECURSIVE from_table(id, boss_id, name, num) AS (
+					SELECT id, boss_id, name, 0 as num FROM employees WHERE id = from_employee_id 			
+					UNION
+					SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN from_table ON employees.id = from_table.boss_id
+				) 
+				SELECT from_table.id, from_table.num FROM from_table
+				JOIN 
+				(
+					WITH RECURSIVE to_table(id, boss_id, name, num) AS (
+						SELECT id, boss_id, name, 0 as num FROM employees WHERE id = to_employee_id 			
+						UNION
+						SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN to_table ON employees.id = to_table.boss_id
+					) SELECT * FROM to_table
+				) as to_table
+				ON from_table.id = to_table.id
+				limit 1
+			)
+		) as from_res
+		order by num
+	)
+	UNION
+	(
+		WITH parents_to as 
+		(
+			WITH RECURSIVE r AS 
+			(
+				SELECT id, boss_id, name, (
+					SELECT (COUNT(*) + 
+					(
+						SELECT COUNT(*)
+						FROM 
+						(
+							WITH parents_from as (
+									WITH RECURSIVE r AS (
+										SELECT id, boss_id, name, 0 as num FROM employees WHERE id = to_employee_id 			
+										UNION
+										SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN r ON employees.id = r.boss_id
+									) SELECT * FROM r
+							) SELECT parents_from.id, parents_from.num FROM parents_from
+							WHERE id NOT IN (
+							 	WITH RECURSIVE r AS (
+									SELECT id, boss_id, name FROM employees WHERE id = from_employee_id	
+									UNION
+									SELECT employees.id, employees.boss_id, employees.name FROM employees JOIN r ON employees.id = r.boss_id
+								) SELECT id FROM r
+							)
+						) tmp
+					)) as num
+					FROM
+					(
+						-- getting all witout intersection
+						WITH parents_from as ( 
+								WITH RECURSIVE r AS (
+									SELECT id, boss_id, name, 0 as num FROM employees WHERE id = from_employee_id 			
+									UNION
+									SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN r ON employees.id = r.boss_id
+								) SELECT * FROM r
+						) SELECT parents_from.id FROM parents_from
+						WHERE id NOT IN (
+						 	WITH RECURSIVE r AS (
+								SELECT id, boss_id, name FROM employees WHERE id = to_employee_id	
+								UNION
+								SELECT employees.id, employees.boss_id, employees.name FROM employees JOIN r ON employees.id = r.boss_id
+							) SELECT id FROM r
+						)
+						UNION
+						(
+							WITH RECURSIVE from_table(id, boss_id, name, num) AS (
+								SELECT id, boss_id, name, 0 as num FROM employees WHERE id = from_employee_id 			
+								UNION
+								SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN from_table ON employees.id = from_table.boss_id
+							) 
+							SELECT from_table.id FROM from_table
+							JOIN 
+							(
+								WITH RECURSIVE to_table(id, boss_id, name, num) AS (
+									SELECT id, boss_id, name, 0 as num FROM employees WHERE id = to_employee_id 			
+									UNION
+									SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN to_table ON employees.id = to_table.boss_id
+								) SELECT * FROM to_table
+							) as to_table
+							ON from_table.id = to_table.id
+							limit 1
+						)
+					) from_result
+				) as num FROM employees WHERE id = to_employee_id 				
+				UNION
+				SELECT employees.id, employees.boss_id, employees.name, num - 1 as num FROM employees JOIN r ON employees.id = r.boss_id
+			) SELECT r.id, r.num FROM r
+		) SELECT parents_to.id, parents_to.num FROM parents_to
+		 WHERE id NOT IN (
+			-- getting all witout intersection
+			WITH parents_from as ( 
+					WITH RECURSIVE r AS (
+						SELECT id, boss_id, name, 0 as num FROM employees WHERE id = from_employee_id 			
+						UNION
+						SELECT employees.id, employees.boss_id, employees.name, num + 1 as num FROM employees JOIN r ON employees.id = r.boss_id
+					) SELECT * FROM r
+			) SELECT parents_from.id FROM parents_from
+		)
+	) 
+) path
+JOIN employees e
+ON path.id = e.id
+order by num;
